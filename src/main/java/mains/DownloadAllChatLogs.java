@@ -9,6 +9,8 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -65,7 +67,7 @@ public class DownloadAllChatLogs {
 	/**
 	 * 最大ループ回数.
 	 */
-	private static final int MAX_LOOP_COUNT = 1;
+	private static final int MAX_LOOP_COUNT = Integer.MAX_VALUE;
 
 	/**
 	 * メイン.
@@ -101,6 +103,30 @@ public class DownloadAllChatLogs {
 								// 読み込み完了まで待機
 								page.waitForLoadState(LoadState.NETWORKIDLE);
 
+								// 別スレッドで実行
+								Thread thread = new Thread(() -> {
+									while (true) {
+										try {
+											// 一番上までスクロール
+											page.evaluate("_timeLine.children[0].scrollTo(0, 0);");
+
+											// 一番下までスクロール
+											page.evaluate(
+													"_timeLine.children[0].scrollTo(0, _timeLine.children[0].scrollHeight);");
+
+											// 読み込み完了まで待機
+											page.waitForLoadState(LoadState.NETWORKIDLE);
+
+											// FIXME
+											Thread.sleep(1000);
+										} catch (InterruptedException e) {
+											System.out.println("■sleep interrupted");
+											break;
+										}
+									}
+								});
+								thread.start();
+
 								// 出力先ファイル
 								File dataFile;
 								try {
@@ -127,323 +153,387 @@ public class DownloadAllChatLogs {
 									continue;
 								}
 
-								// ブックを作成(共有文字列テーブルを使用)
-								// https://stackoverflow.com/questions/73069508/in-streaming-xssfworkbook-make-part-of-cell-content-to-bold-using-apache-poi
-								try (Workbook workbook = new SXSSFWorkbook(new XSSFWorkbook(), 100, false, true)) {
-									// シートを作成
-									Sheet sheet = workbook.createSheet();
-									((SXSSFSheet) sheet).trackAllColumnsForAutoSizing();
+								// 出力先ファイルを開く
+								try (FileOutputStream fileOutputStream = new FileOutputStream(dataFile)) {
+									// ブックを作成(共有文字列テーブルを使用)
+									// https://stackoverflow.com/questions/73069508/in-streaming-xssfworkbook-make-part-of-cell-content-to-bold-using-apache-poi
+									try (Workbook workbook = new SXSSFWorkbook(new XSSFWorkbook(), 100, false, true)) {
+										// シートを作成
+										Sheet sheet = workbook.createSheet();
+										((SXSSFSheet) sheet).trackAllColumnsForAutoSizing();
 
-									// フォントを作成
-									Font headerFont = workbook.createFont();
-									headerFont.setFontName(Configurations.BASE_FONT_NAME);
-									headerFont.setBold(true);
+										// フォントを作成
+										Font headerFont = workbook.createFont();
+										headerFont.setFontName(Configurations.BASE_FONT_NAME);
+										headerFont.setBold(true);
 
-									XSSFFont toAllFont = (XSSFFont) workbook.createFont();
-									toAllFont.setFontName(Configurations.BASE_FONT_NAME);
-									toAllFont.setColor(HSSFColor.HSSFColorPredefined.RED.getIndex());
-									toAllFont.setBold(true);
+										XSSFFont toAllFont = (XSSFFont) workbook.createFont();
+										toAllFont.setFontName(Configurations.BASE_FONT_NAME);
+										toAllFont.setColor(HSSFColor.HSSFColorPredefined.RED.getIndex());
+										toAllFont.setBold(true);
 
-									XSSFFont toFont = (XSSFFont) workbook.createFont();
-									toFont.setFontName(Configurations.BASE_FONT_NAME);
-									toFont.setColor(HSSFColor.HSSFColorPredefined.RED.getIndex());
-									toFont.setBold(true);
+										XSSFFont toFont = (XSSFFont) workbook.createFont();
+										toFont.setFontName(Configurations.BASE_FONT_NAME);
+										toFont.setColor(HSSFColor.HSSFColorPredefined.RED.getIndex());
+										toFont.setBold(true);
 
-									XSSFFont reFont = (XSSFFont) workbook.createFont();
-									reFont.setFontName(Configurations.BASE_FONT_NAME);
-									reFont.setColor(HSSFColor.HSSFColorPredefined.RED.getIndex());
-									reFont.setBold(true);
+										XSSFFont reFont = (XSSFFont) workbook.createFont();
+										reFont.setFontName(Configurations.BASE_FONT_NAME);
+										reFont.setColor(HSSFColor.HSSFColorPredefined.RED.getIndex());
+										reFont.setBold(true);
 
-									XSSFFont quoteFont = (XSSFFont) workbook.createFont();
-									quoteFont.setFontName(Configurations.BASE_FONT_NAME);
-									quoteFont.setColor(HSSFColor.HSSFColorPredefined.GREY_50_PERCENT.getIndex());
-									quoteFont.setFontHeight(10);
+										XSSFFont quoteFont = (XSSFFont) workbook.createFont();
+										quoteFont.setFontName(Configurations.BASE_FONT_NAME);
+										quoteFont.setColor(HSSFColor.HSSFColorPredefined.GREY_50_PERCENT.getIndex());
+										quoteFont.setFontHeight(10);
 
-									XSSFFont cwtagFont = (XSSFFont) workbook.createFont();
-									cwtagFont.setFontName(Configurations.BASE_FONT_NAME);
-									cwtagFont.setColor(HSSFColor.HSSFColorPredefined.BLUE.getIndex());
-									cwtagFont.setBold(true);
+										XSSFFont cwtagFont = (XSSFFont) workbook.createFont();
+										cwtagFont.setFontName(Configurations.BASE_FONT_NAME);
+										cwtagFont.setColor(HSSFColor.HSSFColorPredefined.BLUE.getIndex());
+										cwtagFont.setBold(true);
 
-									XSSFFont infoFont = (XSSFFont) workbook.createFont();
-									infoFont.setFontName(Configurations.BASE_FONT_NAME);
-									infoFont.setColor(HSSFColor.HSSFColorPredefined.GREEN.getIndex());
-									infoFont.setBold(true);
+										XSSFFont infoFont = (XSSFFont) workbook.createFont();
+										infoFont.setFontName(Configurations.BASE_FONT_NAME);
+										infoFont.setColor(HSSFColor.HSSFColorPredefined.GREEN.getIndex());
+										infoFont.setBold(true);
 
-									XSSFFont linkFont = (XSSFFont) workbook.createFont();
-									linkFont.setFontName(Configurations.BASE_FONT_NAME);
-									linkFont.setColor(HSSFColor.HSSFColorPredefined.LIGHT_BLUE.getIndex());
-									linkFont.setUnderline(FontUnderline.SINGLE);
+										XSSFFont linkFont = (XSSFFont) workbook.createFont();
+										linkFont.setFontName(Configurations.BASE_FONT_NAME);
+										linkFont.setColor(HSSFColor.HSSFColorPredefined.LIGHT_BLUE.getIndex());
+										linkFont.setUnderline(FontUnderline.SINGLE);
 
-									// セルスタイルを作成
-									CellStyle headerRowCellStyle = workbook.createCellStyle();
-									headerRowCellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-									headerRowCellStyle.setBorderBottom(BorderStyle.THIN);
-									headerRowCellStyle.setBorderTop(BorderStyle.THIN);
-									headerRowCellStyle.setBorderLeft(BorderStyle.THIN);
-									headerRowCellStyle.setBorderRight(BorderStyle.THIN);
-									headerRowCellStyle.setFillForegroundColor(
-											HSSFColor.HSSFColorPredefined.LIGHT_CORNFLOWER_BLUE.getIndex());
-									headerRowCellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-									headerRowCellStyle.setFont(headerFont);
+										// セルスタイルを作成
+										CellStyle headerRowCellStyle = workbook.createCellStyle();
+										headerRowCellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+										headerRowCellStyle.setBorderBottom(BorderStyle.THIN);
+										headerRowCellStyle.setBorderTop(BorderStyle.THIN);
+										headerRowCellStyle.setBorderLeft(BorderStyle.THIN);
+										headerRowCellStyle.setBorderRight(BorderStyle.THIN);
+										headerRowCellStyle.setFillForegroundColor(
+												HSSFColor.HSSFColorPredefined.LIGHT_GREEN.getIndex());
+										headerRowCellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+										headerRowCellStyle.setFont(headerFont);
 
-									CellStyle dataRowCellStyle = workbook.createCellStyle();
-									dataRowCellStyle.setVerticalAlignment(VerticalAlignment.TOP);
-									dataRowCellStyle.setBorderBottom(BorderStyle.THIN);
-									dataRowCellStyle.setBorderTop(BorderStyle.THIN);
-									dataRowCellStyle.setBorderLeft(BorderStyle.THIN);
-									dataRowCellStyle.setBorderRight(BorderStyle.THIN);
-									dataRowCellStyle.setWrapText(true);
+										CellStyle dataRowCellStyle = workbook.createCellStyle();
+										dataRowCellStyle.setVerticalAlignment(VerticalAlignment.TOP);
+										dataRowCellStyle.setBorderBottom(BorderStyle.THIN);
+										dataRowCellStyle.setBorderTop(BorderStyle.THIN);
+										dataRowCellStyle.setBorderLeft(BorderStyle.THIN);
+										dataRowCellStyle.setBorderRight(BorderStyle.THIN);
+										dataRowCellStyle.setWrapText(true);
 
-									// ヘッダー行を作成
-									List<Object> headerRowDataList = new ArrayList<>();
-									headerRowDataList.add("mid");
-									headerRowDataList.add("index");
-									headerRowDataList.add("投稿者");
-									headerRowDataList.add("本文");
-									headerRowDataList.add("投稿時間");
-									headerRowDataList.add("deleted");
-									headerRowDataList.add("bookmarked");
-									createRow(sheet, headerRowCellStyle, headerRowDataList);
+										// ヘッダー行を作成
+										List<Object> headerRowDataList = new ArrayList<>();
+										headerRowDataList.add("mid");
+										headerRowDataList.add("index");
+										headerRowDataList.add("投稿者");
+										headerRowDataList.add("本文");
+										headerRowDataList.add("投稿時間");
+										headerRowDataList.add("deleted");
+										headerRowDataList.add("bookmarked");
+										createRow(sheet, headerRowCellStyle, headerRowDataList);
 
-									// ウィンドウ枠の固定
-									sheet.createFreezePane(0, 1);
+										// ウィンドウ枠の固定
+										sheet.createFreezePane(0, 1);
 
-									// ヘッダ行にオートフィルタの設定
-									sheet.setAutoFilter(new CellRangeAddress(0, 0, 0, headerRowDataList.size() - 1));
+										// ヘッダ行にオートフィルタの設定
+										sheet.setAutoFilter(
+												new CellRangeAddress(0, 0, 0, headerRowDataList.size() - 1));
 
-									// 処理済みメッセージID一覧
-									Set<Long> processedMidSet = new HashSet<>();
+										// 処理済みメッセージID一覧
+										Set<Long> processedMidSet = new HashSet<>();
 
-									// ループ内で処理済みの投稿数
-									int processedMidCount;
-									int loopCount = 0;
-									while (true) {
-										processedMidCount = 0;
-										loopCount++;
+										// ループ内で処理済みの投稿数
+										int processedMidCount;
+										int loopCount = 0;
+										while (true) {
+											processedMidCount = 0;
+											loopCount++;
 
-										// 全てのメッセージを取得
-										List<Locator> messageLocatorList = page
-												.locator("#_mainContent #_timeLine [data-mid]").all();
+											// 全てのメッセージを取得
+											List<Locator> messageLocatorList = page
+													.locator("#_mainContent #_timeLine [data-mid]").all();
 
-										// 全てのメッセージに対して実行
-										for (Locator messageLocator : messageLocatorList) {
-											// メッセージIDを取得
-											Long mid = Long.parseLong(messageLocator.getAttribute("data-mid"));
-											if (DEBUG_MODE) {
-												System.out.println("■mid: " + mid);
-											}
-
-											// 未処理メッセージの場合
-											if (!processedMidSet.contains(mid)) {
-
-												// indexを取得
-												Integer index = null;
-												try {
-													if (StringUtils
-															.isNotBlank(messageLocator.getAttribute("data-index"))) {
-														index = Integer
-																.parseInt(messageLocator.getAttribute("data-index"));
-														if (DEBUG_MODE) {
-															System.out.println("index: " + index);
-														}
-													}
-												} catch (Exception e) {
-													e.printStackTrace();
+											// 全てのメッセージに対して実行
+											for (Locator messageLocator : messageLocatorList) {
+												// メッセージIDを取得
+												Long mid = Long.parseLong(messageLocator.getAttribute("data-mid"));
+												if (DEBUG_MODE) {
+													System.out.println("■mid: " + mid);
 												}
 
-												// deletedを取得
-												Integer deleted = null;
-												try {
-													if (StringUtils
-															.isNotBlank(messageLocator.getAttribute("data-deleted"))) {
-														deleted = Integer
-																.parseInt(messageLocator.getAttribute("data-deleted"));
-														if (DEBUG_MODE) {
-															System.out.println("deleted: " + deleted);
+												// 未処理メッセージの場合
+												if (!processedMidSet.contains(mid)) {
+
+													// indexを取得
+													Integer index = null;
+													try {
+														if (StringUtils
+																.isNotBlank(
+																		messageLocator.getAttribute("data-index"))) {
+															index = Integer
+																	.parseInt(
+																			messageLocator.getAttribute("data-index"));
+															if (DEBUG_MODE) {
+																System.out.println("index: " + index);
+															}
 														}
+													} catch (Exception e) {
+														e.printStackTrace();
 													}
-												} catch (Exception e) {
-													e.printStackTrace();
-												}
 
-												// bookmarkedを取得
-												Integer bookmarked = null;
-												try {
-													if (StringUtils.isNotBlank(
-															messageLocator.getAttribute("data-bookmarked"))) {
-														bookmarked = Integer.parseInt(
-																messageLocator.getAttribute("data-bookmarked"));
-														if (DEBUG_MODE) {
-															System.out.println("bookmarked: " + bookmarked);
+													// deletedを取得
+													Integer deleted = null;
+													try {
+														if (StringUtils
+																.isNotBlank(
+																		messageLocator.getAttribute("data-deleted"))) {
+															deleted = Integer
+																	.parseInt(messageLocator
+																			.getAttribute("data-deleted"));
+															if (DEBUG_MODE) {
+																System.out.println("deleted: " + deleted);
+															}
 														}
+													} catch (Exception e) {
+														e.printStackTrace();
 													}
-												} catch (Exception e) {
-													e.printStackTrace();
-												}
 
-												// 投稿者を取得
-												String userName = null;
-												try {
-													Locator userNameLocator = messageLocator
-															.locator("[data-testid='timeline_user-name']");
-													if (0 < userNameLocator.count()) {
-														userName = userNameLocator.textContent();
-														if (DEBUG_MODE) {
-															System.out.println("userName: " + userName);
+													// bookmarkedを取得
+													Integer bookmarked = null;
+													try {
+														if (StringUtils.isNotBlank(
+																messageLocator.getAttribute("data-bookmarked"))) {
+															bookmarked = Integer.parseInt(
+																	messageLocator.getAttribute("data-bookmarked"));
+															if (DEBUG_MODE) {
+																System.out.println("bookmarked: " + bookmarked);
+															}
 														}
+													} catch (Exception e) {
+														e.printStackTrace();
 													}
-												} catch (Exception e) {
-													e.printStackTrace();
-												}
 
-												// 本文を取得
-												XSSFRichTextString textContentRichText = new XSSFRichTextString();
-												try {
-													// 削除済みでない場合
-													if (deleted != null && deleted != 1) {
-														// preタグ直下の全ての要素に対して実行
-														boolean infoAppended = false;
-														for (Locator preInnerElementLocator : messageLocator
-																.locator("pre > *").all()) {
-															// 要素のテキストを取得
-															String innerText = preInnerElementLocator.innerText();
+													// 投稿者を取得
+													String userName = null;
+													try {
+														Locator userNameLocator = messageLocator
+																.locator("[data-testid='timeline_user-name']");
+														if (0 < userNameLocator.count()) {
+															userName = userNameLocator.textContent();
+															if (DEBUG_MODE) {
+																System.out.println("userName: " + userName);
+															}
+														}
+													} catch (Exception e) {
+														e.printStackTrace();
+													}
 
-															// 要素の属性を取得
-															String clazz = preInnerElementLocator.getAttribute("class");
-															String cwtag = preInnerElementLocator
-																	.getAttribute("data-cwtag");
-															String cwopen = preInnerElementLocator
-																	.getAttribute("data-cwopen");
-															String cwclose = preInnerElementLocator
-																	.getAttribute("data-cwclose");
+													// 本文を取得
+													XSSFRichTextString textContentRichText = (XSSFRichTextString) workbook
+															.getCreationHelper().createRichTextString(null);
+													try {
+														// 削除済みでない場合
+														if (deleted != null && deleted != 1) {
+															// preタグ直下の全ての要素に対して実行
+															boolean infoAppended = false;
+															for (Locator preInnerElementLocator : messageLocator
+																	.locator("pre > *").all()) {
+																// 要素のテキストを取得
+																String innerText = StringHelper.normalizeNFKC(
+																		preInnerElementLocator.innerText());
 
-															// TODO 要素の属性によって処理を実行
-															if (StringUtils.isNotBlank(cwtag)) {
-																if (StringUtils.equals(cwtag, "[toall]")) {
-																	textContentRichText.append("[TO ALL]", toAllFont);
-																} else if (StringUtils.startsWith(cwtag, "[To:")) {
-																	textContentRichText.append("[TO]", toFont);
-																} else if (StringUtils.startsWith(cwtag, "[rp")) {
-																	textContentRichText.append("[RE]", reFont);
-																} else if (StringUtils.startsWith(cwtag, "[preview")) {
-																	// NOP
-																} else if (StringUtils.startsWith(cwtag, "http")) {
-																	// FIXME リンクを取得
-																	textContentRichText.append(cwtag, linkFont);
-																} else {
-																	textContentRichText.append(innerText);
-																}
-															} else if (StringUtils.contains(clazz, "chatQuote")) {
-																// 引用テキストを修正
-																innerText = Arrays
-																		.stream(StringHelper.splitBreak(innerText))
-																		.map(line -> String.format("> %s\n", line))
-																		.collect(Collectors.joining());
-																textContentRichText.append(innerText, quoteFont);
-															} else {
-																// FIXME 添付ファイルの「プレビュー」を削除
-																Locator fileIdLocator = preInnerElementLocator
-																		.locator("[data-file-id]");
-																if (0 < fileIdLocator.count()) {
-																	innerText = StringUtils.remove(innerText, "プレビュー");
-																}
+																// 要素の属性を取得
+																String clazz = preInnerElementLocator
+																		.getAttribute("class");
+																String cwtag = preInnerElementLocator
+																		.getAttribute("data-cwtag");
+																String cwopen = preInnerElementLocator
+																		.getAttribute("data-cwopen");
+																String cwclose = preInnerElementLocator
+																		.getAttribute("data-cwclose");
 
-																if (StringUtils.equals(cwopen, "[info]")) {
-																	textContentRichText.append(innerText, infoFont);
-																	infoAppended = true;
-																} else {
-																	// FIXME
+																// 要素の属性によって処理を実行
+																if (StringUtils.isNotBlank(cwtag)) {
+																	if (StringUtils.equals(cwtag, "[toall]")) {
+																		// [INFO]要素の挿入直後の場合
+																		if (infoAppended) {
+																			textContentRichText.append("\n");
+																			infoAppended = false;
+																		}
+																		textContentRichText.append("[TO ALL]",
+																				toAllFont);
+																	} else if (StringUtils.startsWith(cwtag, "[To:")) {
+																		// [INFO]要素の挿入直後の場合
+																		if (infoAppended) {
+																			textContentRichText.append("\n");
+																			infoAppended = false;
+																		}
+																		textContentRichText.append("[TO]", toFont);
+																	} else if (StringUtils.startsWith(cwtag, "[rp")) {
+																		Pattern rpPattern = Pattern.compile(
+																				"\\[rp aid=(\\d+) to=(\\d+)-(\\d+)\\]");
+																		Matcher reMatcher = rpPattern.matcher(cwtag);
+																		if (reMatcher.find()) {
+																			String rpToMid = reMatcher.group(3);
+																			if (processedMidSet
+																					.contains(
+																							Long.parseLong(rpToMid))) {
+																				// [INFO]要素の挿入直後の場合
+																				if (infoAppended) {
+																					textContentRichText.append("\n");
+																					infoAppended = false;
+																				}
+																				textContentRichText.append(
+																						String.format("[RE %s]",
+																								rpToMid),
+																						reFont);
+																			} else {
+																				// [INFO]要素の挿入直後の場合
+																				if (infoAppended) {
+																					textContentRichText.append("\n");
+																					infoAppended = false;
+																				}
+																				textContentRichText.append(
+																						String.format("[RE %s-%s]",
+																								reMatcher.group(2),
+																								reMatcher.group(3)),
+																						reFont);
+																			}
+																		} else {
+																			// [INFO]要素の挿入直後の場合
+																			if (infoAppended) {
+																				textContentRichText.append("\n");
+																				infoAppended = false;
+																			}
+																			textContentRichText.append("[RE]", reFont);
+																		}
+																	} else if (StringUtils.startsWith(cwtag,
+																			"[preview")) {
+																		// NOP
+																	} else if (StringUtils.startsWith(cwtag, "http")) {
+																		// [INFO]要素の挿入直後の場合
+																		if (infoAppended) {
+																			textContentRichText.append("\n");
+																			infoAppended = false;
+																		}
+																		// FIXME リンクを取得
+																		textContentRichText.append(cwtag, linkFont);
+																	} else {
+																		// [INFO]要素の挿入直後の場合
+																		if (infoAppended) {
+																			textContentRichText.append("\n");
+																			infoAppended = false;
+																		}
+																		textContentRichText.append(innerText);
+																	}
+																} else if (StringUtils.contains(clazz, "chatQuote")) {
+																	// [INFO]要素の挿入直後の場合
 																	if (infoAppended) {
 																		textContentRichText.append("\n");
 																		infoAppended = false;
 																	}
-																	textContentRichText.append(innerText);
+																	// 引用テキストを修正
+																	innerText = Arrays
+																			.stream(StringHelper.splitBreak(innerText))
+																			.map(line -> String.format("> %s\n", line))
+																			.collect(Collectors.joining());
+																	textContentRichText.append(innerText, quoteFont);
+																} else {
+																	// FIXME 添付ファイルの「プレビュー」を削除
+																	Locator fileIdLocator = preInnerElementLocator
+																			.locator("[data-file-id]");
+																	if (0 < fileIdLocator.count()) {
+																		innerText = StringUtils.remove(innerText,
+																				"プレビュー");
+																	}
+
+																	if (StringUtils.equals(cwopen, "[info]")) {
+																		textContentRichText.append(innerText, infoFont);
+																		infoAppended = true;
+																	} else {
+																		// [INFO]要素の挿入直後の場合
+																		if (infoAppended) {
+																			textContentRichText.append("\n");
+																			infoAppended = false;
+																		}
+																		textContentRichText.append(innerText);
+																	}
 																}
 															}
-														}
 
-														if (DEBUG_MODE) {
-															System.out.println(
-																	"textContent: " + textContentRichText.getString());
+															if (DEBUG_MODE) {
+																System.out.println(
+																		"textContent: "
+																				+ textContentRichText.getString());
+															}
+														} else {
+															// FIXME
+															Locator spanLocator = messageLocator
+																	.locator("span[data-cwtag]");
+															textContentRichText.append(spanLocator.textContent(),
+																	cwtagFont);
+															if (DEBUG_MODE) {
+																System.out.println(
+																		"span: " + textContentRichText.getString());
+															}
 														}
-													} else {
-														// FIXME
-														Locator spanLocator = messageLocator
-																.locator("span[data-cwtag]");
-														textContentRichText.append(spanLocator.textContent(),
-																cwtagFont);
-														if (DEBUG_MODE) {
-															System.out.println(
-																	"span: " + textContentRichText.getString());
-														}
+													} catch (Exception e) {
+														e.printStackTrace();
 													}
-												} catch (Exception e) {
-													e.printStackTrace();
-												}
 
-												// 投稿時間を取得
-												Date tmDate = null;
-												try {
-													Locator tmLocator = messageLocator.locator("[data-tm]");
-													if (0 < tmLocator.count()) {
-														Long tm = Long.parseLong(tmLocator.getAttribute("data-tm"));
-														tmDate = new Date(tm * 1000);
-														if (DEBUG_MODE) {
-															System.out.println("tm: " + tm);
-															System.out.println("tmDate: " + tmDate);
+													// 投稿時間を取得
+													Date tmDate = null;
+													try {
+														Locator tmLocator = messageLocator.locator("[data-tm]");
+														if (0 < tmLocator.count()) {
+															Long tm = Long.parseLong(tmLocator.getAttribute("data-tm"));
+															tmDate = new Date(tm * 1000);
+															if (DEBUG_MODE) {
+																System.out.println("tm: " + tm);
+																System.out.println("tmDate: " + tmDate);
+															}
 														}
+													} catch (Exception e) {
+														e.printStackTrace();
 													}
-												} catch (Exception e) {
-													e.printStackTrace();
+
+													// 行データを作成
+													List<Object> dataRowDataList = new ArrayList<>();
+													dataRowDataList.add(String.format("%d", mid));
+													dataRowDataList.add(index);
+													dataRowDataList.add(userName);
+													dataRowDataList.add(textContentRichText);
+													dataRowDataList.add(tmDate);
+													dataRowDataList.add(deleted);
+													dataRowDataList.add(bookmarked);
+
+													// 行を作成
+													createRow(sheet, dataRowCellStyle, dataRowDataList);
+
+													// 処理済みメッセージID一覧に追加
+													processedMidSet.add(mid);
+													processedMidCount++;
 												}
+											}
 
-												// 行データを作成
-												List<Object> dataRowDataList = new ArrayList<>();
-												dataRowDataList.add(String.format("%d", mid));
-												dataRowDataList.add(index);
-												dataRowDataList.add(userName);
-												dataRowDataList.add(textContentRichText);
-												dataRowDataList.add(tmDate);
-												dataRowDataList.add(deleted);
-												dataRowDataList.add(bookmarked);
-
-												// 行を作成
-												createRow(sheet, dataRowCellStyle, dataRowDataList);
-
-												// 処理済みメッセージID一覧に追加
-												processedMidSet.add(mid);
-												processedMidCount++;
+											if (MAX_LOOP_COUNT <= loopCount || processedMidCount == 0) {
+												break;
 											}
 										}
 
-										try {
-											// FIXME 一番下までスクロール
-											page.evaluate(
-													"_timeLine.children[0].scrollTo(0, _timeLine.children[0].scrollHeight);");
-
-											Thread.sleep(5000);
-										} catch (Exception e) {
-											e.printStackTrace();
-										} finally {
-											// 読み込み完了まで待機
-											page.waitForLoadState(LoadState.NETWORKIDLE);
+										// 列幅の自動調整
+										for (int i = 0; i <= headerRowDataList.size(); i++) {
+											sheet.autoSizeColumn(i);
 										}
 
-										if (MAX_LOOP_COUNT <= loopCount || processedMidCount == 0) {
-											break;
-										}
-									}
-
-									// 列幅の自動調整
-									for (int i = 0; i <= headerRowDataList.size(); i++) {
-										sheet.autoSizeColumn(i);
-									}
-
-									// ファイル出力
-									try (FileOutputStream fileOutputStream = new FileOutputStream(dataFile)) {
+										// 出力先ファイルに書き込み
 										workbook.write(fileOutputStream);
 									}
 								}
+
+								// 別スレッドを停止
+								thread.interrupt();
 							} catch (Exception e) {
 								e.printStackTrace();
 							}

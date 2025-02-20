@@ -1,5 +1,7 @@
 package utils;
 
+import java.text.Normalizer;
+
 /**
  * 文字列ヘルパー.
  *
@@ -20,5 +22,15 @@ public class StringHelper {
 	 */
 	public static String[] splitBreak(String text) {
 		return text.split(BREAK_CHARS_REGEX);
+	}
+
+	/**
+	 * NFKCでUnicode正規化.
+	 *
+	 * @param text
+	 * @return
+	 */
+	public static String normalizeNFKC(String text) {
+		return Normalizer.normalize(text, Normalizer.Form.NFKC);
 	}
 }
