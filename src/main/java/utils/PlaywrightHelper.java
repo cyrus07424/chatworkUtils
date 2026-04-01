@@ -33,6 +33,7 @@ public class PlaywrightHelper {
 	public static Browser.NewContextOptions getNewContextOptions(boolean withState) {
 		// FIXME
 		Browser.NewContextOptions newContextOptions = new Browser.NewContextOptions();
+		newContextOptions.setUserAgent(Configurations.USE_USER_AGENT);
 		if (withState) {
 			newContextOptions.setStorageStatePath(Configurations.STATE_PATH);
 		}

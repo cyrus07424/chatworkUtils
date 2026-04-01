@@ -50,6 +50,7 @@ public class LoginChatwork {
 
 						// Scanner
 						try (Scanner scanner = new Scanner(System.in)) {
+							System.out.println("reCAPTCHAが表示されている場合は先にreCAPTCHAを解決してください");
 							System.out.print("メールアドレスを入力してください: ");
 							String email = scanner.nextLine();
 

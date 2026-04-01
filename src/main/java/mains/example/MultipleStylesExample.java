@@ -21,8 +21,8 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
  */
 public class MultipleStylesExample {
 	public static void main(String[] args) {
-		try (Workbook wb = new SXSSFWorkbook(new XSSFWorkbook(), 100, false, true)) {
-			Sheet sheet = wb.createSheet("Sheet");
+		try (Workbook wb = new SXSSFWorkbook(new XSSFWorkbook(), SXSSFWorkbook.DEFAULT_WINDOW_SIZE, false, true)) {
+			Sheet sheet = wb.createSheet();
 			Row row = sheet.createRow(2);
 			XSSFFont font1 = (XSSFFont) wb.createFont();
 			XSSFFont font2 = (XSSFFont) wb.createFont();
